@@ -1,7 +1,7 @@
 '''
 Created on Jan 12, 2015
 
-@author: stian
+@author: Stian Sandve
 '''
 
 import serial
@@ -54,7 +54,6 @@ class Sonar(object):
     classdocs
     '''
 
-
     def __init__(self, params):
         '''
         Constructor
@@ -85,14 +84,14 @@ class Sonar(object):
             while(indata != HEADER):
                 indata = sonar.read()
         
-            message.append(bytes_to_hex(indata))
+            message.append(self.bytes_to_hex(indata))
         
             indata = sonar.read()
             while(indata != LF):
-                message.append(bytes_to_hex(indata))
+                message.append(self.bytes_to_hex(indata))
                 indata = sonar.read()
         
-            message.append(bytes_to_hex(indata))
+            message.append(self.bytes_to_hex(indata))
         
         return message
     
@@ -105,7 +104,7 @@ class Sonar(object):
         print "\n\n"
     
     def send_version(self):
-        send_command(MT_SEND_VERSION_ID)
+        self.send_command(MT_SEND_VERSION_ID)
     
     def version_data(self):
         indata = sonar.read()
@@ -131,7 +130,7 @@ class Sonar(object):
             print "\n\n"
     
     def send_BBUser(self):
-        send_command(MT_SEND_BB_USER_ID)
+        self.send_command(MT_SEND_BB_USER_ID)
     
     def BBUser_data(self):
         # NOT IMPLEMENTED
@@ -142,7 +141,7 @@ class Sonar(object):
         print "NOT IMPLEMENTED"
     
     def send_data(self):
-        send_command(MT_SEND_DATA)
+        self.send_command(MT_SEND_DATA)
     
     def head_data(self):
         # NOT IMPLEMENTED
@@ -153,6 +152,6 @@ class Sonar(object):
         return binascii.hexlify(bytearray(byte))
     
     def sonar_read(self, numberOfBytes):
-        inData = bytes_to_hex(sonar.read())
+        inData = self.bytes_to_hex(sonar.read())
         return inData
         

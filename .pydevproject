@@ -6,6 +6,6 @@
 <path>/${PROJECT_DIR_NAME}/Sonar</path>
 </pydev_pathproperty>
 <pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
-<path>/Users/stian/dev/Python/pyserial-2.7</path>
+<path>/Users/stian/dev/eclipse_workspace/AUV/AUV/pyserial-2.7</path>
 </pydev_pathproperty>
 </pydev_project>
