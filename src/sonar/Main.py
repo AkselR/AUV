@@ -4,7 +4,7 @@ Created on Jan 12, 2015
 @author: Stian Sandve
 '''
 
-import Sonar
+from sonar import Sonar
 import time
 
 def main():
