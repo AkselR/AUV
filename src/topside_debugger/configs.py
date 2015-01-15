@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import ConfigParser
 
 def parse_config_section(section):
