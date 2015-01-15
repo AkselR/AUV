@@ -65,16 +65,6 @@ class ROV(object):
 	PYGAME_MIN_DEFLECTION = -1
 	# Maximum joystick deflection according to pygame.
 	PYGAME_MAX_DEFLECTION = 1
-	# Joystick dead zone value.
-	DEAD_ZONE = 5
-	# Serial communication baud rate. Must be the same as the ROVs baud rate.
-	BAUD_RATE = 56000
-	# The name of the com port where the vehicle is connected
-	PORT = "COM1"
-	# Whether or not to use the exponential deflection illustrated by this graph:
-	# https://www.desmos.com/calculator/q68fesfgg7
-	FLATTEN = True
-
 
 	# -------------------------------- FUNCTIONS -------------------------------- #
 
@@ -116,18 +106,6 @@ class ROV(object):
 			time.strftime("%d.%m.%y"), time.strftime("%H:%M:%S"))
 
 	def connet_to_rov(self):
-		#p = '/dev/tty.usbserial-A9YXL3ZV' # FT232R
-
-		# Check if the FT232R is connected. Vendor ID (VID) is 403 and
-		# Product ID (PID) is 6001 for these chips.
-		#ser = serial.serial_for_url("hwgrep://403:6001", do_not_open='true')
-		#ser.baudrate = self.BAUD_RATE
-		#ser.timeout = None
-		#ser.writeTimeout = None
-		#ser.open()
-
-		# Check if comport is connected. If not, wait one second and do another check.
-		# This check goes on continuously until the vehicle is connected.
 
 		# Read configs.
 		cfg = configs.parse_config_section("Communication")
@@ -136,6 +114,8 @@ class ROV(object):
 		self.logger.debug("Com port = %s", port)
 		self.logger.debug("Baud rate = %d", baud_rate)
 
+		# Check if comport is connected. If not, wait one second and do another check.
+		# This check goes on continuously until the vehicle is connected.
 		com_port_connected = False
 		while not com_port_connected:
 			try:
