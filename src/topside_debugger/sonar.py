@@ -154,3 +154,4 @@ class Sonar(object):
     def sonar_read(self, numberOfBytes):
         inData = self.bytes_to_hex(sonar.read())
         return inData
+
