@@ -46,7 +46,7 @@ import logging
 
 class ROV(object):
 
-	# -------------------------------- CONSTANTS -------------------------------- #
+	# ------------------------------ CONSTANTS ------------------------------ #
 
 	# Signal the start of a packet.
 	START = 255
@@ -56,6 +56,8 @@ class ROV(object):
 	NUMBER_OF_AXES = 4
 	# Where to put the button pressed value
 	BUTTON_INDEX = 5
+	# The index of where the first joystick axis is to be put.
+	PILOT_AXIS_START = 1
 	# Where to put the hat switch position
 	HAT_SWITCH_INDEX = 6
 	# Minimum joystick deflection according to custom protocol.
@@ -67,16 +69,43 @@ class ROV(object):
 	# Maximum joystick deflection according to pygame.
 	PYGAME_MAX_DEFLECTION = 1
 
-	# -------------------------------- FUNCTIONS -------------------------------- #
+	# ------------------------------ FUNCTIONS ------------------------------ #
 
 	def __init__(self):
 		self.init_logging()
 
-		# start byte, roll, pitch, yaw, throttle, button, hat, manip, manip, 
-		# manip, manip, manip, stop byte
-		self.rov_data = [self.START, 125, 125, 125, 125, 0, 125, 125, 125, 0, 0, self.STOP]
+		self.rov_data = [
+		self.START, # start byte
+		125, 		# roll
+		125, 		# pitch
+		125, 		# yaw
+		125, 		# throttle
+		0,	 		# button
+		125, 		# hat
+		125, 		# manipulator
+		125, 		# manipulator
+		0, 	 		# manipulator
+		0, 	 		# manipulator
+		self.STOP 	# stop byte
+		]
+
 		self.initialize_joystick()
 		self.connet_to_rov()
+
+		self.gain = float(configs.parse_config_section("Joystick")['gain'])
+
+		if configs.parse_config_section("Joystick")['flatten'] == "False":
+			self.flatten = False
+		else:
+			self.flatten = True
+
+		self.increase_gain_button = int(
+			configs.parse_config_section("Joystick")['increase_gain_button'])
+		self.decrease_gain_button = int(
+			configs.parse_config_section("Joystick")['decrease_gain_button'])
+
+		self.toggle_flatten_button = int(
+			configs.parse_config_section("Joystick")['toggle_flatten_button'])
 
 	def init_logging(self):
 		logging_enabled = configs.parse_config_section("Logging")['enabled']
@@ -95,9 +124,11 @@ class ROV(object):
 			level = logging.DEBUG
 
 		if log_to_file == "False":
-			logging.basicConfig(format='%(levelname)s: %(message)s', level=level)
+			logging.basicConfig(format='%(levelname)s: %(message)s', 
+				level=level)
 		else:
-			logging.basicConfig(filename='rov.log', format='%(levelname)s: %(message)s', level=level)
+			logging.basicConfig(filename='rov.log', 
+				format='%(levelname)s: %(message)s', level=level)
 
 		if logging_enabled == "False":
 			logging.disable(logging.CRITICAL)
@@ -115,8 +146,9 @@ class ROV(object):
 		self.logger.debug("Com port = %s", port)
 		self.logger.debug("Baud rate = %d", baud_rate)
 
-		# Check if comport is connected. If not, wait one second and do another check.
-		# This check goes on continuously until the vehicle is connected.
+		# Check if comport is connected. If not, wait one second and perform
+		# another check. This check goes on continuously until the vehicle is 
+		# connected.
 		com_port_connected = False
 		while not com_port_connected:
 			try:
@@ -145,8 +177,9 @@ class ROV(object):
 		# Initialize a joystick object.
 		pygame.init()
 
-		# Check if joystick is connected. If not, wait one second and do another check.
-		# This check goes on continuously until a joystick is connected.
+		# Check if joystick is connected. If not, wait one second and perform
+		# another check. This check goes on continuously until a joystick is 
+		# connected.
 		joystick_connected = False
 		while not joystick_connected:
 			try:
@@ -163,8 +196,8 @@ class ROV(object):
 
 	# The joystick produces values in the range -1 to 1. We want to values
 	# to go from 0 to 250. This function can convert from/to any range.
-	# You can also provide the function with a dead zone to compensate for inaccuracies
-	# in the values provided by the joystick.
+	# You can also provide the function with a dead zone to compensate for 
+	# inaccuracies in the values provided by the joystick.
 	def compute_deflection(self, value, left_min=-1, left_max=1, right_min=0, 
 		right_max=251, dead_zone=5, flatten=False):
 
@@ -197,20 +230,28 @@ class ROV(object):
 		return value_converted
 
 	def prepare_joystick_data(self):
-		# Put the four joystick axes in the data array that will be sent to the ROV.
+		# Put the four joystick axes in the data array that will be sent to the 
+		# ROV.
 
 		# Roll and pitch are the first two axes on the joystick.
 		for a in range(0, 2):
-			self.rov_data[a+1] = self.compute_deflection(self.joystick.get_axis(a), 
-				flatten=self.flatten)
+			self.rov_data[a+1] = self.compute_deflection(
+				self.joystick.get_axis(a), 
+				flatten=self.flatten) * self.gain
 
 		# Throttle is the second axis on the joystick.
 		throttle = self.compute_deflection(self.joystick.get_axis(2), 
 			flatten=self.flatten)
 
-		# Yaw is the third axis on the joystick.
-		self.rov_data[3] = self.compute_deflection(self.joystick.get_axis(3),
-			flatten=self.flatten)
+		# Yaw is the third axis on the joystick. The deflection should not
+		# be affected by gain settings because we always need maximum power
+		# in the vertical direction.
+		yaw = self.compute_deflection(self.joystick.get_axis(3),
+			flatten=self.flatten) * self.gain
+
+		# The vehicle is very sensitive on this axis, therefore we halve
+		# the deflection to improve handling.
+		self.rov_data[3] = yaw / 2
 
 		# We want to reverse the throttle axis to make it more intuitively
 		# to fly the ROV.
@@ -227,6 +268,22 @@ class ROV(object):
 			if (self.joystick.get_button(b)) != 0:
 				self.rov_data[self.BUTTON_INDEX] = b+1
 				break
+
+		if self.rov_data[self.BUTTON_INDEX] == self.increase_gain_button:
+			self.set_gain(self.gain + 0.1)
+		elif self.rov_data[self.BUTTON_INDEX] == self.decrease_gain_button:
+			self.set_gain(self.gain - 0.1)
+		elif self.rov_data[self.BUTTON_INDEX] == self.toggle_flatten_button:
+			if not self.flatten:
+				self.flatten = True
+			else:
+				self.flatten = False
+
+	def set_gain(self, gain):
+		if gain > 1 and gain <= 0:
+			return
+
+		self.gain = gain
 
 	def get_hat_switch_position(self):
 		
@@ -247,10 +304,15 @@ class ROV(object):
 	def bytes_to_int(self, str):
 		return int(str.encode('hex'), 16)
 
+	def log_currenct_state(self):
+		self.logger.info("Gain: %d", self.gain)
+		self.logger.info("Flatten: %r", self.flatten)
+
 	def run(self):
 		try:
 			running = True
 		   	while running:
+		   		self.log_currenct_state()
 
 		    	# Wait for ROV to send stop byte.
 				indata = self.bytes_to_int(self.rov.read())
@@ -274,7 +336,7 @@ class ROV(object):
 		    self.joystick.quit()
 		    self.rov.close()
 
-# -------------------------------- MAIN ------------------------------------- #
+# ------------------------------ MAIN ----------------------------------- #
 
 def main():
 	rov = ROV()
