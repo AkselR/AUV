@@ -92,21 +92,6 @@ class ROV(object):
 		self.initialize_joystick()
 		self.connet_to_rov()
 
-		self.gain = float(configs.parse_config_section("Joystick")['gain'])
-
-		if configs.parse_config_section("Joystick")['flatten'] == "False":
-			self.flatten = False
-		else:
-			self.flatten = True
-
-		self.increase_gain_button = int(
-			configs.parse_config_section("Joystick")['increase_gain_button'])
-		self.decrease_gain_button = int(
-			configs.parse_config_section("Joystick")['decrease_gain_button'])
-
-		self.toggle_flatten_button = int(
-			configs.parse_config_section("Joystick")['toggle_flatten_button'])
-
 	def init_logging(self):
 		logging_enabled = configs.parse_config_section("Logging")['enabled']
 		logging_level = configs.parse_config_section("Logging")['level']
@@ -169,10 +154,28 @@ class ROV(object):
 
 		# Read configs.
 		cfg = configs.parse_config_section("Joystick")
+		self.gain = float(cfg['gain'])
+
+		if cfg['flatten'] == "False":
+			self.flatten = False
+		else:
+			self.flatten = True
+
+		self.increase_gain_button = int(
+			cfg['increase_gain_button'])
+		self.decrease_gain_button = int(
+			cfg['decrease_gain_button'])
+
+		self.toggle_flatten_button = int(
+			cfg['toggle_flatten_button'])
+		
 		self.dead_zone = int(cfg['dead_zone'])
-		self.flatten = bool(cfg['flatten'])
 		self.logger.debug("Joystick dead zone = %d", self.dead_zone)
 		self.logger.debug("Flatten joystick deflection = %r", self.flatten)
+		self.logger.debug("Increase gain button = %d", 
+			self.increase_gain_button)
+		self.logger.debug("Decrease gain button = %d", 
+			self.decrease_gain_button)
 
 		# Initialize a joystick object.
 		pygame.init()
