@@ -93,9 +93,11 @@ class ROV(object):
 		self.connet_to_rov()
 
 	def init_logging(self):
-		logging_enabled = configs.parse_config_section("Logging")['enabled']
-		logging_level = configs.parse_config_section("Logging")['level']
-		log_to_file = configs.parse_config_section("Logging")['log_to_file']
+		cfg = configs.parse_config_section("Logging")
+		logging_enabled = cfg['enabled']
+		logging_level = cfg['level']
+		log_to_file = cfg['log_to_file']
+		log_to_console = cfg['log_to_console']
 
 		if logging_level.lower() == "critical":
 			level = logging.CRITICAL
@@ -108,17 +110,25 @@ class ROV(object):
 		else:
 			level = logging.DEBUG
 
-		if log_to_file == "False":
-			logging.basicConfig(format='%(levelname)s: %(message)s', 
-				level=level)
-		else:
-			logging.basicConfig(filename='rov.log', 
-				format='%(levelname)s: %(message)s', level=level)
+		self.logger = logging.getLogger(__name__)
+		self.logger.setLevel(level)
+		log_formatter = logging.Formatter("[%(levelname)s]: %(message)s")
+
+		if log_to_file == "True":
+			# Truncate existing log.
+			with open('rov.log', 'w'):
+				pass
+			file_handler = logging.FileHandler("rov.log")
+			file_handler.setFormatter(log_formatter)
+			self.logger.addHandler(file_handler)
+		if log_to_console == "True":
+			console_handler = logging.StreamHandler()
+			console_handler.setFormatter(log_formatter)
+			self.logger.addHandler(console_handler)
 
 		if logging_enabled == "False":
 			logging.disable(logging.CRITICAL)
 
-		self.logger = logging.getLogger("ROV")
 		self.logger.info("\n---------- Logging started %s, %s ----------\n", 
 			time.strftime("%d.%m.%y"), time.strftime("%H:%M:%S"))
 
@@ -134,6 +144,7 @@ class ROV(object):
 		# Check if comport is connected. If not, wait one second and perform
 		# another check. This check goes on continuously until the vehicle is 
 		# connected.
+		self.logger.info("Looking for port %s", port)
 		com_port_connected = False
 		while not com_port_connected:
 			try:
@@ -143,7 +154,7 @@ class ROV(object):
 					timeout=None, writeTimeout=None)
 				com_port_connected = True
 			except OSError:
-				self.logger.warning("Could not find the requested com port." + \
+				self.logger.error("Could not find the requested com port." + \
 				" Make sure that %s is connected.", self.PORT)
 				try:
 					time.sleep(1)
@@ -183,12 +194,13 @@ class ROV(object):
 		# Check if joystick is connected. If not, wait one second and perform
 		# another check. This check goes on continuously until a joystick is 
 		# connected.
+		self.logger.info("Looking for a joystick...")
 		joystick_connected = False
 		while not joystick_connected:
 			try:
 				self.joystick = pygame.joystick.Joystick(0)
 			except pygame.error:
-				self.logger.warning("Make sure a joystick is plugged in.")
+				self.logger.error("Make sure a joystick is plugged in.")
 				try:
 					time.sleep(1)
 				except KeyboardInterrupt:
