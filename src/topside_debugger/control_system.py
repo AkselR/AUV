@@ -209,40 +209,56 @@ class ROV(object):
 		self.joystick.init()
 		self.logger.info("Initialized Joystick : %s", self.joystick.get_name())
 
-	# The joystick produces values in the range -1 to 1. We want to values
-	# to go from 0 to 250. This function can convert from/to any range.
-	# You can also provide the function with a dead zone to compensate for 
-	# inaccuracies in the values provided by the joystick.
-	def compute_deflection(self, value, left_min=-1, left_max=1, right_min=0, 
-		right_max=251, dead_zone=5, flatten=False):
-
-		# Improves the sensitivity for small deflections but still allows 
-		# you to access the whole range of movement with large deflections.
-		# https://www.desmos.com/calculator/q68fesfgg7
-		if (flatten):
-			if (value > 0):
-				value = pow(value, 2)
-			else:
-				value = -pow(value, 2)
-
+	def remap(self, value, left_min, left_max, right_min, right_max):
 		# Figure out how 'wide' each range is
 		left_span = left_max - left_min
 		right_span = right_max - right_min
 
 		# Convert the left range into a 0-1 range (float)
-		value_scaled = float(value - left_min) / float(left_span)
+		value_scaled = (float(value - left_min) / float(left_span))
 
 		# Convert the 0-1 range into a value in the right range.
-		value_converted =  int(right_min + (value_scaled * right_span))
-
-		center = right_max / 2
-		deflection = abs(value_converted - center)
-
-		# Deadzone
-		if (deflection <= dead_zone):
-			value_converted = center
-
+		value_converted =  int(round(right_min + (value_scaled * right_span)))
 		return value_converted
+
+	# The joystick produces values in the range -1 to 1. We want to values
+	# to go from 0 to 250. This function can convert from/to any range.
+	# You can also provide the function with a dead zone to compensate for 
+	# inaccuracies in the values provided by the joystick.
+	def compute_deflection(self, value, left_min=-1, left_max=1, right_min=0, 
+			right_max=250, dead_zone=20, flatten=False):
+
+			# Improves the sensitivity for small deflections but still allows 
+			# you to access the whole range of movement with large deflections.
+			# https://www.desmos.com/calculator/q68fesfgg7
+			if (flatten):
+				if (value > 0):
+					value = pow(value, 2)
+				else:
+					value = -pow(value, 2)
+
+			# Convert the 0-1 range into a value in the right range.
+			value_converted =  self.remap(value, left_min, left_max, right_min, 
+				right_max)
+
+			center = (right_max / 2)
+			absolute_deflection = abs(value_converted - center)
+			deflection = value_converted - center
+			
+			print "Center + Deflection = %d + %d = %d" % (center, deflection, 
+				(center + deflection))
+
+			# Deadzone
+			if (absolute_deflection <= dead_zone):
+				return center
+
+			if deflection >= 0:	
+				return self.remap(center+deflection, center+dead_zone, 
+					right_max, center, right_max)
+			else:
+				val = self.remap(center-deflection, center+dead_zone, 
+					right_max, center, right_max)
+				return right_max - val
 
 	def prepare_joystick_data(self):
 		# Put the four joystick axes in the data array that will be sent to the 
@@ -252,17 +268,17 @@ class ROV(object):
 		for a in range(0, 2):
 			self.rov_data[a+1] = self.compute_deflection(
 				self.joystick.get_axis(a), 
-				flatten=self.flatten) * self.gain
+				flatten=self.flatten, dead_zone=self.dead_zone) * self.gain
 
 		# Throttle is the second axis on the joystick.
 		throttle = self.compute_deflection(self.joystick.get_axis(2), 
-			flatten=self.flatten)
+			flatten=self.flatten, dead_zone=self.dead_zone)
 
 		# Yaw is the third axis on the joystick. The deflection should not
 		# be affected by gain settings because we always need maximum power
 		# in the vertical direction.
 		yaw = self.compute_deflection(self.joystick.get_axis(3),
-			flatten=self.flatten) * self.gain
+			flatten=self.flatten, dead_zone=self.dead_zone) * self.gain
 
 		# The vehicle is very sensitive on this axis, therefore we halve
 		# the deflection to improve handling.
