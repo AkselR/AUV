@@ -63,7 +63,7 @@ class ROV(object):
 	# Minimum joystick deflection according to custom protocol.
 	MIN_DEFLECTION = 0
 	# Maximum joystick deflection according to custom protocol.
-	MAX_DEFLECTION = 251
+	MAX_DEFLECTION = 250
 	# Minimum joystick deflection according to pygame.
 	PYGAME_MIN_DEFLECTION = -1
 	# Maximum joystick deflection according to pygame.
@@ -87,10 +87,16 @@ class ROV(object):
 		0, 	 		# manipulator
 		0, 	 		# manipulator
 		self.STOP 	# stop byte
-		]
+	]
 
 		self.initialize_joystick()
 		self.connet_to_rov()
+
+		self.button_pressed = {
+		self.increase_gain_button: False,
+		self.decrease_gain_button: False,
+		self.toggle_flatten_button: False
+		}
 
 	def init_logging(self):
 		cfg = configs.parse_config_section("Logging")
@@ -153,9 +159,9 @@ class ROV(object):
 				self.rov = serial.Serial(port=port, baudrate=baud_rate, 
 					timeout=None, writeTimeout=None)
 				com_port_connected = True
-			except OSError:
-				self.logger.error("Could not find the requested com port." + \
-				" Make sure that %s is connected.", self.PORT)
+			except (OSError, serial.serialutil.SerialException):
+				self.logger.debug("Could not find the requested com port." + \
+				" Make sure that %s is connected.", port)
 				try:
 					time.sleep(1)
 				except KeyboardInterrupt:
@@ -199,8 +205,9 @@ class ROV(object):
 		while not joystick_connected:
 			try:
 				self.joystick = pygame.joystick.Joystick(0)
+				joystick_connected = True
 			except pygame.error:
-				self.logger.error("Make sure a joystick is plugged in.")
+				self.logger.debug("Make sure a joystick is plugged in.")
 				try:
 					time.sleep(1)
 				except KeyboardInterrupt:
@@ -218,15 +225,15 @@ class ROV(object):
 		value_scaled = (float(value - left_min) / float(left_span))
 
 		# Convert the 0-1 range into a value in the right range.
-		value_converted =  int(round(right_min + (value_scaled * right_span)))
-		return value_converted
+		value_converted =  round(right_min + (value_scaled * right_span))
+		return int(value_converted)
 
 	# The joystick produces values in the range -1 to 1. We want to values
 	# to go from 0 to 250. This function can convert from/to any range.
 	# You can also provide the function with a dead zone to compensate for 
 	# inaccuracies in the values provided by the joystick.
 	def compute_deflection(self, value, left_min=-1, left_max=1, right_min=0, 
-			right_max=250, dead_zone=20, flatten=False):
+			right_max=250, dead_zone=5, flatten=False, gain=1.0):
 
 			# Improves the sensitivity for small deflections but still allows 
 			# you to access the whole range of movement with large deflections.
@@ -242,17 +249,17 @@ class ROV(object):
 				right_max)
 
 			center = (right_max / 2)
-			absolute_deflection = abs(value_converted - center)
-			deflection = value_converted - center
+			absolute_deflection = abs(value_converted - center) * gain
+			deflection = (value_converted - center) * gain
 			
 			print "Center + Deflection = %d + %d = %d" % (center, deflection, 
 				(center + deflection))
 
 			# Deadzone
 			if (absolute_deflection <= dead_zone):
-				return center
+				return int(center)
 
-			if deflection >= 0:	
+			if deflection >= 0.0:	
 				return self.remap(center+deflection, center+dead_zone, 
 					right_max, center, right_max)
 			else:
@@ -268,25 +275,31 @@ class ROV(object):
 		for a in range(0, 2):
 			self.rov_data[a+1] = self.compute_deflection(
 				self.joystick.get_axis(a), 
-				flatten=self.flatten, dead_zone=self.dead_zone) * self.gain
+				flatten=self.flatten, 
+				dead_zone=self.dead_zone,
+				gain=self.gain)
 
 		# Throttle is the second axis on the joystick.
 		throttle = self.compute_deflection(self.joystick.get_axis(2), 
-			flatten=self.flatten, dead_zone=self.dead_zone)
+			flatten=self.flatten, 
+			dead_zone=self.dead_zone,
+			gain=self.gain)
 
 		# Yaw is the third axis on the joystick. The deflection should not
 		# be affected by gain settings because we always need maximum power
 		# in the vertical direction.
 		yaw = self.compute_deflection(self.joystick.get_axis(3),
-			flatten=self.flatten, dead_zone=self.dead_zone) * self.gain
+			flatten=self.flatten, 
+			dead_zone=self.dead_zone,
+			gain=self.gain)
 
 		# The vehicle is very sensitive on this axis, therefore we halve
 		# the deflection to improve handling.
-		self.rov_data[3] = yaw / 2
+		self.rov_data[3] = yaw
 
 		# We want to reverse the throttle axis to make it more intuitively
 		# to fly the ROV.
-		self.rov_data[4] = - (throttle - (self.MAX_DEFLECTION-1))
+		self.rov_data[4] = - (throttle - (self.MAX_DEFLECTION))
 
 		self.rov_data[self.HAT_SWITCH_INDEX] = self.get_hat_switch_position()
 
@@ -300,18 +313,30 @@ class ROV(object):
 				self.rov_data[self.BUTTON_INDEX] = b+1
 				break
 
-		if self.rov_data[self.BUTTON_INDEX] == self.increase_gain_button:
+		if self.button_released(self.increase_gain_button):
 			self.set_gain(self.gain + 0.1)
-		elif self.rov_data[self.BUTTON_INDEX] == self.decrease_gain_button:
+		elif self.button_released(self.decrease_gain_button):
 			self.set_gain(self.gain - 0.1)
-		elif self.rov_data[self.BUTTON_INDEX] == self.toggle_flatten_button:
+		elif self.button_released(self.toggle_flatten_button):
 			if not self.flatten:
 				self.flatten = True
 			else:
 				self.flatten = False
 
+	def button_released(self, button):
+		button_released = False
+		if self.button_pressed[button]:
+			if not self.rov_data[self.BUTTON_INDEX] == button:
+				self.button_pressed[button] = False
+				button_released = True
+		else:
+			if self.rov_data[self.BUTTON_INDEX] == button:
+				self.button_pressed[button] = True
+
+		return button_released
+
 	def set_gain(self, gain):
-		if gain > 1 and gain <= 0:
+		if gain > 1.0 or gain <= 0.0:
 			return
 
 		self.gain = gain
@@ -336,8 +361,9 @@ class ROV(object):
 		return int(str.encode('hex'), 16)
 
 	def log_currenct_state(self):
-		self.logger.info("Gain: %d", self.gain)
+		self.logger.info("Gain: %.1f", self.gain)
 		self.logger.info("Flatten: %r", self.flatten)
+		self.logger.info("Dead zone: %d", self.dead_zone)
 
 	def run(self):
 		try:
