@@ -368,10 +368,10 @@ class ROV(object):
 	def run(self):
 		try:
 			running = True
-		   	while running:
-		   		self.log_currenct_state()
+			while running:
+				self.log_currenct_state()
 
-		    	# Wait for ROV to send stop byte.
+			# Wait for ROV to send stop byte.
 				indata = self.bytes_to_int(self.rov.read())
 				while(indata != self.STOP):
 					print indata
@@ -390,8 +390,8 @@ class ROV(object):
 				self.rov.write(self.rov_data)
 
 		except KeyboardInterrupt:
-		    self.joystick.quit()
-		    self.rov.close()
+			self.joystick.quit()
+			self.rov.close()
 
 # ------------------------------ MAIN ----------------------------------- #
 
