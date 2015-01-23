@@ -163,16 +163,23 @@ class AUV(object):
     def bytes_to_int(self, str):
         return int(str.encode('hex'), 16)
 
+    def read_imu_state(self):
+        imu_state = self.imu.readline()
+        self.heading, self.depth = imu_state.split(",")
+
+    def read_auv_state(self):
+        # Wait for AUV to send stop byte.
+        indata = self.bytes_to_int(self.auv.read())
+        while(indata != self.STOP):
+            self.logger.debug("Input from AUV: %d", indata)
+            indata = self.bytes_to_int(self.auv.read())
+
     def run(self):
         try:
             running = True
             while running:
-                # Wait for AUV to send stop byte.
-                indata = self.bytes_to_int(self.auv.read())
-                while(indata != self.STOP):
-                    print indata
-                    indata = self.bytes_to_int(self.auv.read())
-
+                self.read_auv_state()
+                self.read_imu_state()
                 self.prepare_auv_data()
 
                 # Print the message for debugging purposes.
