@@ -5,6 +5,7 @@ import time
 import sys
 import configs
 import logging
+import pid
 
 class AUV(object):
 
@@ -40,6 +41,7 @@ class AUV(object):
     ]
         
         self.connect_to_imu()
+        self.init_pid()
         self.connet_to_auv()
 
     def init_logging(self):
@@ -81,6 +83,15 @@ class AUV(object):
 
         self.logger.info("\n---------- Logging started %s, %s ----------\n", 
             time.strftime("%d.%m.%y"), time.strftime("%H:%M:%S"))
+
+    def init_pid(self):
+        cfg = configs.parse_config_section("PID")
+        p = int(cfg['P'])
+        i = int(cfg['I'])
+        d = int(cfg['D'])
+
+        self.pid = pid.PID(p, i, d)
+        self.pid.setPoint(1.3)
 
     def connet_to_auv(self):
 
@@ -146,7 +157,7 @@ class AUV(object):
         self.auv_data[1] = self.CENTER
         self.auv_data[2] = self.CENTER
         self.auv_data[3] = self.CENTER
-        self.auv_data[4] = self.CENTER
+        self.auv_data[4] = self.pid.update(self.depth)
 
     # Convert byte to int.
     def bytes_to_int(self, str):
@@ -161,6 +172,8 @@ class AUV(object):
                 while(indata != self.STOP):
                     print indata
                     indata = self.bytes_to_int(self.auv.read())
+
+                self.prepare_auv_data()
 
                 # Print the message for debugging purposes.
                 self.logger.debug("Transmitting data to AUV")
