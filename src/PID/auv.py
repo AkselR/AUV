@@ -165,7 +165,9 @@ class AUV(object):
 
     def read_imu_state(self):
         imu_state = self.imu.readline()
-        self.heading, self.depth = imu_state.split(",")
+        hdg, dpt = imu_state.split(",")
+        self.heading = int(hdg)
+        self.depth = int(dpt)
 
     def read_auv_state(self):
         # Wait for AUV to send stop byte.
