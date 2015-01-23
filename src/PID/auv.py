@@ -191,6 +191,7 @@ class AUV(object):
             running = True
             while running:
                 self.read_auv_state()
+                self.imu.write('\n');
                 self.read_imu_state()
                 self.prepare_auv_data()
 
