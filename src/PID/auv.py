@@ -41,7 +41,8 @@ class AUV(object):
     ]
         
         self.connect_to_imu()
-        self.init_pid()
+        self.init_depth_pid()
+        self.init_heading_pid()
         self.connet_to_auv()
 
     def init_logging(self):
@@ -84,14 +85,23 @@ class AUV(object):
         self.logger.info("\n---------- Logging started %s, %s ----------\n", 
             time.strftime("%d.%m.%y"), time.strftime("%H:%M:%S"))
 
-    def init_pid(self):
-        cfg = configs.parse_config_section("PID")
-        p = int(cfg['P'])
-        i = int(cfg['I'])
-        d = int(cfg['D'])
+    def init_depth_pid(self):
+        cfg = configs.parse_config_section("DEPTH_PID")
+        p = float(cfg['P'])
+        i = float(cfg['I'])
+        d = float(cfg['D'])
 
-        self.pid = pid.PID(p, i, d)
-        self.pid.setPoint(1.3)
+        self.depth_pid = pid.PID(p, i, d)
+        self.depth_pid.setPoint(1.3)
+
+    def init_heading_pid(self):
+        cfg = configs.parse_config_section("HEADING_PID")
+        p = float(cfg['P'])
+        i = float(cfg['I'])
+        d = float(cfg['D'])
+
+        self.heading_pid = pid.PID(p, i, d)
+        self.heading_pid.setPoint(0.0)
 
     def connet_to_auv(self):
 
@@ -156,8 +166,8 @@ class AUV(object):
     def prepare_auv_data(self):
         self.auv_data[1] = self.CENTER
         self.auv_data[2] = self.CENTER
-        self.auv_data[3] = self.CENTER
-        self.auv_data[4] = self.pid.update(self.depth)
+        self.auv_data[3] = self.heading_pid.update(self.heading)
+        self.auv_data[4] = self.depth_pid.update(self.depth)
 
     # Convert byte to int.
     def bytes_to_int(self, str):
@@ -166,8 +176,8 @@ class AUV(object):
     def read_imu_state(self):
         imu_state = self.imu.readline()
         hdg, dpt = imu_state.split(",")
-        self.heading = int(hdg)
-        self.depth = int(dpt)
+        self.heading = float(hdg)
+        self.depth = float(dpt)
 
     def read_auv_state(self):
         # Wait for AUV to send stop byte.
