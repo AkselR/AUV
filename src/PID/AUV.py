@@ -15,8 +15,9 @@ class AUV(object):
     #Signal the end of a packet.
     STOP = 251
     MIN_DEFLECTION = 0
-    # Maximum joystick deflection according to custom protocol.
+    # Maximum deflection according to custom protocol.
     MAX_DEFLECTION = 250
+    CENTER = 125
 
     # ------------------------------ FUNCTIONS ------------------------------ #
 
@@ -37,7 +38,8 @@ class AUV(object):
         0,          # manipulator
         self.STOP   # stop byte
     ]
-    
+        
+        self.connect_to_imu()
         self.connet_to_auv()
 
     def init_logging(self):
@@ -140,50 +142,11 @@ class AUV(object):
         value_converted =  round(right_min + (value_scaled * right_span))
         return int(value_converted)
 
-    # The joystick produces values in the range -1 to 1. We want the values
-    # to go from 0 to 250. This function can convert from/to any range.
-    # You can also provide the function with a dead zone to compensate for 
-    # inaccuracies in the values provided by the joystick.
-    def compute_deflection(self, value, left_min=-1, left_max=1, right_min=0, 
-            right_max=250, dead_zone=5, flatten=False, gain=1.0):
-
-            # Improves the sensitivity for small deflections but still allows 
-            # you to access the whole range of movement with large deflections.
-            # https://www.desmos.com/calculator/q68fesfgg7
-            if (flatten):
-                if (value > 0):
-                    value = pow(value, 2)
-                else:
-                    value = -pow(value, 2)
-
-            # Convert the 0-1 range into a value in the right range.
-            value_converted =  self.remap(value, left_min, left_max, right_min, 
-                right_max)
-
-            center = (right_max / 2)
-            absolute_deflection = abs(value_converted - center) * gain
-            deflection = (value_converted - center) * gain
-            
-            print "Center + Deflection = %d + %d = %d" % (center, deflection, 
-                (center + deflection))
-
-            # Deadzone
-            if (absolute_deflection <= dead_zone):
-                return int(center)
-
-            if deflection >= 0.0:   
-                return self.remap(center+deflection, center+dead_zone, 
-                    right_max, center, right_max)
-            else:
-                val = self.remap(center-deflection, center+dead_zone, 
-                    right_max, center, right_max)
-                return right_max - val
-
     def prepare_auv_data(self):
-        self.auv_data[1] = 125
-        self.auv_data[2] = 125
-        self.auv_data[3] = 125 
-        self.auv_data[4] = 125
+        self.auv_data[1] = self.CENTER
+        self.auv_data[2] = self.CENTER
+        self.auv_data[3] = self.CENTER
+        self.auv_data[4] = self.CENTER
 
     # Convert byte to int.
     def bytes_to_int(self, str):
@@ -206,7 +169,6 @@ class AUV(object):
                 self.auv.write(self.auv_data)
 
         except KeyboardInterrupt:
-            self.joystick.quit()
             self.auv.close()
 
 # ------------------------------ MAIN ----------------------------------- #
