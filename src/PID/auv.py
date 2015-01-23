@@ -190,6 +190,7 @@ class AUV(object):
 
         except KeyboardInterrupt:
             self.auv.close()
+            self.imu.close()
 
 # ------------------------------ MAIN ----------------------------------- #
 
